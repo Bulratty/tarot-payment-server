@@ -6,13 +6,14 @@ const app = express();
 
 app.use(express.json());
 
+
 // Проверка сервера
 app.get("/", (req, res) => {
   res.send("OK");
 });
 
 
-// ЮKassa
+// Подключение ЮKassa
 const checkout = new YooCheckout({
   shopId: process.env.YOOKASSA_SHOP_ID,
   secretKey: process.env.YOOKASSA_SECRET_KEY
@@ -37,14 +38,39 @@ app.post("/create-payment", async (req, res) => {
         currency: "RUB"
       },
 
+
       confirmation: {
         type: "redirect",
         return_url: "https://example.com"
       },
 
+
       capture: true,
 
-      description: description || "Оплата расклада Таро"
+
+      description: description || "Оплата расклада Таро",
+
+
+      // Данные для чека ЮKassa
+      receipt: {
+        customer: {
+          email: "test@example.com"
+        },
+
+        items: [
+          {
+            description: description || "Расклад Таро",
+            quantity: "1.00",
+
+            amount: {
+              value: String(amount),
+              currency: "RUB"
+            },
+
+            vat_code: 1
+          }
+        ]
+      }
 
     });
 
@@ -54,6 +80,7 @@ app.post("/create-payment", async (req, res) => {
 
 
     res.json({
+      success: true,
       id: payment.id,
       status: payment.status,
       confirmation_url: payment.confirmation.confirmation_url
@@ -61,6 +88,7 @@ app.post("/create-payment", async (req, res) => {
 
 
   } catch (error) {
+
 
     console.log("========== PAYMENT ERROR ==========");
     console.log(error);
@@ -80,7 +108,7 @@ app.post("/create-payment", async (req, res) => {
 });
 
 
-// Сервер
+// Запуск сервера
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
