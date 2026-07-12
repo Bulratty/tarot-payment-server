@@ -92,9 +92,7 @@ app.post("/create-payment", async (req, res) => {
   } catch (error) {
 
     console.log("========== PAYMENT ERROR ==========");
-    console.log(error);
-    console.log(error.response?.data);
-    console.log(error.message);
+    console.log(error.response?.data || error);
     console.log("===================================");
 
 
