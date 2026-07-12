@@ -6,21 +6,17 @@ const app = express();
 
 app.use(express.json());
 
-
-// Проверка сервера
 app.get("/", (req, res) => {
   res.send("OK");
 });
 
 
-// Подключение ЮKassa
 const checkout = new YooCheckout({
   shopId: process.env.YOOKASSA_SHOP_ID,
   secretKey: process.env.YOOKASSA_SECRET_KEY
 });
 
 
-// Создание платежа
 app.post("/create-payment", async (req, res) => {
 
   console.log("CREATE PAYMENT REQUEST:");
@@ -38,18 +34,14 @@ app.post("/create-payment", async (req, res) => {
         currency: "RUB"
       },
 
-
       confirmation: {
         type: "redirect",
         return_url: "https://example.com"
       },
 
-
       capture: true,
 
-
       description: description || "Оплата расклада Таро",
-
 
       receipt: {
         customer: {
@@ -59,7 +51,6 @@ app.post("/create-payment", async (req, res) => {
         items: [
           {
             description: description || "Расклад Таро",
-
             quantity: "1.00",
 
             amount: {
@@ -69,7 +60,8 @@ app.post("/create-payment", async (req, res) => {
 
             vat_code: 1,
 
-            paymentSubject: "service"
+            payment_mode: "full_payment",
+            payment_subject: "service"
           }
         ]
       }
@@ -107,7 +99,6 @@ app.post("/create-payment", async (req, res) => {
 });
 
 
-// Запуск сервера
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
