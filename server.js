@@ -19,12 +19,11 @@ const checkout = new YooCheckout({
 
 app.post("/create-payment", async (req, res) => {
 
-  console.log("VERSION TEST: PAYMENT SUBJECT FIX 2");
+  console.log("VERSION TEST: PAYMENT SUBJECT FIX 3");
 
   try {
 
-    const amount = req.body.amount;
-    const description = req.body.description;
+    const { amount, description } = req.body;
 
 
     const payment = await checkout.createPayment({
@@ -51,7 +50,8 @@ app.post("/create-payment", async (req, res) => {
         items: [
           {
             description: description || "Расклад Таро",
-            quantity: "1.00",
+
+            quantity: "1",
 
             amount: {
               value: String(amount),
@@ -60,8 +60,9 @@ app.post("/create-payment", async (req, res) => {
 
             vat_code: 1,
 
-            paymentMode: "full_payment",
-            paymentSubject: "service"
+            payment_subject: "service",
+
+            payment_mode: "full_payment"
           }
         ]
       }
