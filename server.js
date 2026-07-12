@@ -41,14 +41,15 @@ app.post("/create-payment", async (req, res) => {
       confirmation_url: payment.confirmation.confirmation_url,
     });
 
-  } catch (error) {
-    console.error("Payment error:", error);
+ } catch (error) {
+  console.error("========== PAYMENT ERROR ==========");
+  console.dir(error, { depth: null });
+  console.error("===================================");
 
-    res.status(500).json({
-      error: error.message,
-    });
-  }
-});
+  res.status(500).json({
+    error: String(error),
+  });
+}
 
 
 // webhook ЮKassa
