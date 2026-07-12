@@ -19,12 +19,12 @@ const checkout = new YooCheckout({
 
 app.post("/create-payment", async (req, res) => {
 
-  console.log("CREATE PAYMENT REQUEST:");
-  console.log(req.body);
+  console.log("VERSION TEST: PAYMENT SUBJECT FIX 2");
 
   try {
 
-    const { amount, description } = req.body;
+    const amount = req.body.amount;
+    const description = req.body.description;
 
 
     const payment = await checkout.createPayment({
@@ -41,7 +41,7 @@ app.post("/create-payment", async (req, res) => {
 
       capture: true,
 
-      description: description || "Оплата расклада Таро",
+      description: description || "Расклад Таро",
 
       receipt: {
         customer: {
@@ -60,8 +60,8 @@ app.post("/create-payment", async (req, res) => {
 
             vat_code: 1,
 
-            payment_mode: "full_payment",
-            payment_subject: "service"
+            paymentMode: "full_payment",
+            paymentSubject: "service"
           }
         ]
       }
@@ -69,28 +69,25 @@ app.post("/create-payment", async (req, res) => {
     });
 
 
-    console.log("PAYMENT CREATED:");
+    console.log("PAYMENT CREATED");
     console.log(payment);
 
 
     res.json({
       success: true,
       id: payment.id,
-      status: payment.status,
-      confirmation_url: payment.confirmation.confirmation_url
+      url: payment.confirmation.confirmation_url
     });
 
 
   } catch (error) {
 
-    console.log("========== PAYMENT ERROR ==========");
+    console.log("PAYMENT ERROR");
     console.log(error.response?.data || error);
-    console.log("===================================");
 
 
     res.status(500).json({
       success: false,
-      message: error.message || "Payment error",
       details: error.response?.data || error
     });
 
