@@ -30,11 +30,6 @@ app.post("/create-payment", async (req, res) => {
 
     const { amount, description } = req.body;
 
-    const checkout = new YooCheckout({
-      shopId: process.env.YOOKASSA_SHOP_ID,
-      secretKey: process.env.YOOKASSA_SECRET_KEY,
-    });
-
 
     const payment = await checkout.createPayment({
 
@@ -56,7 +51,6 @@ app.post("/create-payment", async (req, res) => {
       description: description || "Оплата расклада Таро",
 
 
-      // Данные для чека ЮKassa
       receipt: {
         customer: {
           email: "test@example.com"
@@ -65,6 +59,7 @@ app.post("/create-payment", async (req, res) => {
         items: [
           {
             description: description || "Расклад Таро",
+
             quantity: "1.00",
 
             amount: {
@@ -72,7 +67,9 @@ app.post("/create-payment", async (req, res) => {
               currency: "RUB"
             },
 
-            vat_code: 1
+            vat_code: 1,
+
+            paymentSubject: "service"
           }
         ]
       }
@@ -93,7 +90,6 @@ app.post("/create-payment", async (req, res) => {
 
 
   } catch (error) {
-
 
     console.log("========== PAYMENT ERROR ==========");
     console.log(error);
