@@ -31,7 +31,6 @@ app.post("/create-payment", async (req, res) => {
 
     const { amount, description } = req.body;
 
-
     const payment = await checkout.createPayment({
 
       amount: {
@@ -96,6 +95,7 @@ app.post("/create-payment", async (req, res) => {
     console.log("PAYMENT ERROR");
     console.log(error.response?.data || error);
 
+
     res.status(500).json({
       success: false,
       details: error.response?.data || error
@@ -119,15 +119,13 @@ app.post("/yookassa-webhook", async (req, res) => {
     const event = req.body;
 
 
-    if (
-      event.event === "payment.succeeded"
-    ) {
+    if (event.event === "payment.succeeded") {
 
       const payment = event.object;
 
 
       await axios.post(
-        "https://webhook.botpress.cloud/2d2c172a-4e79-475e-bb7f-c70ecfd19d11",
+        "https://webhook.botpress.cloud/0fe328bd-23b3-4fd3-b459-2287f9bb989c",
         {
           event: "payment_success",
           payment_id: payment.id,
@@ -158,7 +156,7 @@ app.post("/yookassa-webhook", async (req, res) => {
 
 
 
-// Запуск
+// Запуск сервера
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
