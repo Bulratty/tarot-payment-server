@@ -1,29 +1,31 @@
 const express = require("express");
-const YooKassa = require("@a2seven/yoo-checkout").default;
+const { YooCheckout } = require("@a2seven/yoo-checkout");
 require("dotenv").config();
 
 const app = express();
 
 app.use(express.json());
 
-// проверка сервера
+
+// проверка что сервер жив
 app.get("/", (req, res) => {
   res.send("OK");
 });
+
 
 // создание платежа ЮKassa
 app.post("/create-payment", async (req, res) => {
   try {
     const { amount, description } = req.body;
 
-    const checkout = new YooKassa({
+    const checkout = new YooCheckout({
       shopId: process.env.YOOKASSA_SHOP_ID,
       secretKey: process.env.YOOKASSA_SECRET_KEY,
     });
 
     const payment = await checkout.createPayment({
       amount: {
-        value: amount || "100.00",
+        value: amount || "1.00",
         currency: "RUB",
       },
       confirmation: {
@@ -40,7 +42,8 @@ app.post("/create-payment", async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Payment error:", error.message);
+    console.error("Payment error:", error);
+
     res.status(500).json({
       error: error.message,
     });
