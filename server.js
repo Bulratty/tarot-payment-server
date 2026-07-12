@@ -30,6 +30,11 @@ app.post("/create-payment", async (req, res) => {
 
     const { amount, description } = req.body;
 
+    const checkout = new YooCheckout({
+      shopId: process.env.YOOKASSA_SHOP_ID,
+      secretKey: process.env.YOOKASSA_SECRET_KEY,
+    });
+
 
     const payment = await checkout.createPayment({
 
