@@ -49,6 +49,7 @@ app.post("/create-payment", async (req, res) => {
         items: [
           {
             description: description || "Расклад Таро",
+
             quantity: 1,
 
             amount: {
@@ -57,7 +58,10 @@ app.post("/create-payment", async (req, res) => {
             },
 
             vat_code: 1,
-            payment_subject: "service"
+
+            payment_subject: "service",
+
+            payment_mode: "full_payment"
           }
         ]
       }
@@ -73,7 +77,6 @@ app.post("/create-payment", async (req, res) => {
 
     if (error.response) {
       console.error(error.response.data);
-
       return res.status(400).json(error.response.data);
     }
 
