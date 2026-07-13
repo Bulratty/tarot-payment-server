@@ -7,8 +7,6 @@ const app = express();
 app.use(express.json());
 
 
-// ЮKassa клиент
-
 const checkout = new YooCheckout({
   shopId: process.env.YOOKASSA_SHOP_ID,
   secretKey: process.env.YOOKASSA_SECRET_KEY
@@ -16,27 +14,19 @@ const checkout = new YooCheckout({
 
 
 // Проверка сервера
-
 app.get("/", (req, res) => {
   res.send("OK");
 });
 
 
-
-// ===============================
-// СОЗДАНИЕ ПЛАТЕЖА
-// ===============================
-
+// Создание платежа
 app.post("/create-payment", async (req, res) => {
 
+  console.log("===== CREATE PAYMENT =====");
+  console.log(JSON.stringify(req.body, null, 2));
+
+
   try {
-
-    console.log("===== CREATE PAYMENT =====");
-
-    console.log(
-      JSON.stringify(req.body, null, 2)
-    );
-
 
     const {
       amount,
@@ -49,21 +39,14 @@ app.post("/create-payment", async (req, res) => {
     const payment = await checkout.createPayment({
 
       amount: {
-
-        value: amount || "50.00",
-
+        value: amount || "1.00",
         currency: "RUB"
-
       },
 
 
       confirmation: {
-
         type: "redirect",
-
-        return_url:
-        "https://t.me/your_bot"
-
+        return_url: "https://t.me/your_bot"
       },
 
 
@@ -74,18 +57,61 @@ app.post("/create-payment", async (req, res) => {
       description || "Расклад Таро",
 
 
+      receipt: {
+
+        customer: {
+
+          email: "test@example.com"
+
+        },
+
+
+        items: [
+
+          {
+
+            description:
+            description || "Расклад Таро",
+
+
+            quantity: "1",
+
+
+            amount: {
+
+              value: amount || "1.00",
+
+              currency: "RUB"
+
+            },
+
+
+            vat_code: 1
+
+
+          }
+
+        ]
+
+      },
+
+
       metadata: {
 
-        user_id: user_id,
+        user_id:
+        user_id || "unknown",
 
-        product: product
+
+        product:
+        product || "unknown"
 
       }
 
     });
 
 
-    console.log("PAYMENT CREATED:");
+
+    console.log("===== PAYMENT CREATED =====");
 
     console.log(
       JSON.stringify(payment, null, 2)
@@ -98,9 +124,7 @@ app.post("/create-payment", async (req, res) => {
   } catch(error) {
 
 
-    console.error(
-      "CREATE PAYMENT ERROR:"
-    );
+    console.error("===== CREATE PAYMENT ERROR =====");
 
     console.error(error);
 
@@ -108,7 +132,13 @@ app.post("/create-payment", async (req, res) => {
     res.status(500).json({
 
       error:
-      "payment_creation_failed"
+      "payment_creation_failed",
+
+      message:
+      error.message,
+
+      details:
+      error.response?.data || null
 
     });
 
@@ -118,114 +148,31 @@ app.post("/create-payment", async (req, res) => {
 
 
 
-
-// ===============================
-// WEBHOOK ЮKASSA
-// ===============================
-
-app.post("/yookassa-webhook", async (req, res) => {
+// Webhook ЮKassa
+app.post("/yookassa-webhook", async (req,res)=>{
 
 
-  try {
+  console.log("===== YOOKASSA WEBHOOK =====");
+
+  console.log(
+    JSON.stringify(req.body,null,2)
+  );
 
 
-    console.log(
-      "===== YOOKASSA WEBHOOK ====="
-    );
-
-
-    console.log(
-      JSON.stringify(req.body, null, 2)
-    );
-
-
-
-    const event = req.body;
-
-
-
-    if (
-      event.event === "payment.succeeded"
-    ) {
-
-
-      const payment = event.object;
-
-
-      console.log(
-        "PAYMENT SUCCESS"
-      );
-
-
-      console.log(
-        "ID:",
-        payment.id
-      );
-
-
-      console.log(
-        "AMOUNT:",
-        payment.amount.value
-      );
-
-
-      console.log(
-        "PRODUCT:",
-        payment.metadata?.product
-      );
-
-
-      console.log(
-        "USER:",
-        payment.metadata?.user_id
-      );
-
-
-    }
-
-
-
-    res.send("OK");
-
-
-
-  } catch(error) {
-
-
-    console.error(
-      "WEBHOOK ERROR:"
-    );
-
-
-    console.error(error);
-
-
-    res.status(500).send("ERROR");
-
-
-  }
-
+  res.send("OK");
 
 });
 
-
-
-
-// ===============================
-// START
-// ===============================
 
 
 const PORT =
 process.env.PORT || 3000;
 
 
-app.listen(PORT, () => {
-
+app.listen(PORT,()=>{
 
   console.log(
-    `Server running on port ${PORT}`
+    "Server running on port " + PORT
   );
-
 
 });
