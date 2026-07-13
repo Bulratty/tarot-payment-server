@@ -1,12 +1,9 @@
 const express = require("express");
-const axios = require("axios");
-const { YooCheckout } = require("@a2seven/yoo-checkout");
-require("dotenv").config();
 
 const app = express();
 
+// Парсер JSON для webhook ЮKassa
 app.use(express.json());
-
 
 // Проверка сервера
 app.get("/", (req, res) => {
@@ -14,151 +11,74 @@ app.get("/", (req, res) => {
 });
 
 
-// ЮKassa
-const checkout = new YooCheckout({
-  shopId: process.env.YOOKASSA_SHOP_ID,
-  secretKey: process.env.YOOKASSA_SECRET_KEY
-});
-
-
-// Создание платежа
-app.post("/create-payment", async (req, res) => {
-
-  console.log("CREATE PAYMENT REQUEST:");
-  console.log(req.body);
-
-  try {
-
-    const { amount, description } = req.body;
-
-    const payment = await checkout.createPayment({
-
-      amount: {
-        value: String(amount),
-        currency: "RUB"
-      },
-
-      confirmation: {
-        type: "redirect",
-        return_url: "https://example.com"
-      },
-
-      capture: true,
-
-      description: description || "Расклад Таро",
-
-      receipt: {
-        customer: {
-          email: "test@example.com"
-        },
-
-        items: [
-          {
-            description: description || "Расклад Таро",
-
-            quantity: "1",
-
-            amount: {
-              value: String(amount),
-              currency: "RUB"
-            },
-
-            vat_code: 1,
-
-            payment_subject: "service",
-
-            payment_mode: "full_payment"
-          }
-        ]
-      },
-
-      metadata: {
-        product: description || "tarot"
-      }
-
-    });
-
-
-    console.log("PAYMENT CREATED");
-    console.log(payment);
-
-
-    res.json({
-      success: true,
-      id: payment.id,
-      url: payment.confirmation.confirmation_url
-    });
-
-
-  } catch (error) {
-
-    console.log("PAYMENT ERROR");
-    console.log(error.response?.data || error);
-
-
-    res.status(500).json({
-      success: false,
-      details: error.response?.data || error
-    });
-
-  }
-
-});
-
-
-
 // Webhook ЮKassa
 app.post("/yookassa-webhook", async (req, res) => {
-
-  console.log("YOOKASSA WEBHOOK:");
-  console.log(req.body);
-
-
   try {
+    console.log("=== YOOKASSA WEBHOOK RECEIVED ===");
+    console.log(JSON.stringify(req.body, null, 2));
 
     const event = req.body;
 
-
+    // Проверяем успешную оплату
     if (event.event === "payment.succeeded") {
 
       const payment = event.object;
 
+      const product = payment.metadata?.product;
+      const userId = payment.metadata?.user_id;
 
-      await axios.post(
-        "https://webhook.botpress.cloud/0fe328bd-23b3-4fd3-b459-2287f9bb989c",
-        {
-          event: "payment_success",
-          payment_id: payment.id,
-          amount: payment.amount.value,
-          product: payment.metadata?.product
-        }
-      );
+      console.log("Payment success");
+      console.log("Product:", product);
+      console.log("User ID:", userId);
 
 
-      console.log("SENT TO BOTPRESS");
+      // Отправляем событие в Botpress
+      if (userId) {
 
+        const response = await fetch(
+          "https://your-botpress-url/api/v1/bots/your-bot-id/events",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer YOUR_BOTPRESS_TOKEN"
+            },
+            body: JSON.stringify({
+              type: "payment_success",
+              userId: userId,
+              payload: {
+                product: product
+              }
+            })
+          }
+        );
+
+        console.log(
+          "Botpress response:",
+          await response.text()
+        );
+
+      } else {
+        console.log("No user_id in metadata");
+      }
     }
 
 
-    res.sendStatus(200);
-
+    res.send("OK");
 
   } catch (error) {
 
-    console.log("WEBHOOK ERROR:");
-    console.log(error.message);
+    console.error("Webhook error:");
+    console.error(error);
 
-    res.sendStatus(500);
-
+    res.status(500).send("ERROR");
   }
-
 });
-
 
 
 // Запуск сервера
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`Server started on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
