@@ -13,271 +13,152 @@ const checkout = new YooCheckout({
 });
 
 
-// BOTPRESS WEBHOOK
 const BOTPRESS_WEBHOOK_URL =
 "https://webhook.botpress.cloud/0fe328bd-23b3-4fd3-b459-2287f9bb989c";
 
 
-// Проверка сервера
-app.get("/", (req, res) => {
+
+app.get("/", (req,res)=>{
   res.send("OK");
 });
 
 
 
-// ===============================
-// СОЗДАНИЕ ПЛАТЕЖА
-// ===============================
 
-app.post("/create-payment", async (req, res) => {
+// CREATE PAYMENT
 
-  console.log("===== CREATE PAYMENT =====");
-  console.log(JSON.stringify(req.body, null, 2));
+app.post("/create-payment", async (req,res)=>{
 
 
-  try {
-
-    const {
-      amount,
-      description,
-      user_id,
-      product
-    } = req.body;
+console.log("===== CREATE PAYMENT =====");
+console.log(JSON.stringify(req.body,null,2));
 
 
-
-    const payment = await checkout.createPayment({
-
-      amount: {
-        value: amount || "1.00",
-        currency: "RUB"
-      },
+try {
 
 
-      confirmation: {
-        type: "redirect",
-        return_url: "https://t.me/your_bot"
-      },
-
-
-      capture: true,
-
-
-      description:
-      description || "Расклад Таро",
+const {
+amount,
+description,
+user_id,
+product
+}=req.body;
 
 
 
-      receipt: {
-
-        customer: {
-          email: "test@example.com"
-        },
+const payment = await checkout.createPayment({
 
 
-        items: [
-
-          {
-
-            description:
-            description || "Расклад Таро",
+amount:{
+value: amount || "1.00",
+currency:"RUB"
+},
 
 
-            quantity: "1",
+confirmation:{
+type:"redirect",
+return_url:"https://t.me/your_bot"
+},
 
 
-            amount: {
-
-              value: amount || "1.00",
-              currency: "RUB"
-
-            },
+capture:true,
 
 
-            vat_code: 1
-
-          }
-
-        ]
-
-      },
+description:
+description || "Расклад Таро",
 
 
 
-      metadata: {
-
-        user_id:
-        user_id,
+receipt:{
 
 
-        product:
-        product
-
-      }
-
-
-    });
+customer:{
+email:"test@example.com"
+},
 
 
 
-    console.log("===== PAYMENT CREATED =====");
+items:[
 
-    console.log(JSON.stringify(payment, null, 2));
+{
 
-
-
-    res.json(payment);
-
+description:
+description || "Расклад Таро",
 
 
-  } catch(error) {
+quantity:"1",
 
 
-    console.error("===== PAYMENT ERROR =====");
+amount:{
+value: amount || "1.00",
+currency:"RUB"
+},
 
-    console.error(
-      error.response?.data || error
-    );
+
+// ВАЖНО ДЛЯ 54-ФЗ
+vat_code:1,
 
 
-    res.status(500).json({
+payment_subject:"service",
 
-      error: "payment_creation_failed",
 
-      details:
-      error.response?.data || error.message
+payment_mode:"full_payment"
 
-    });
+}
 
-  }
+]
+
+
+},
+
+
+
+metadata:{
+
+
+user_id:user_id,
+
+product:product
+
+
+}
+
+
 
 });
 
 
 
+console.log("===== PAYMENT CREATED =====");
+console.log(JSON.stringify(payment,null,2));
+
+
+res.json(payment);
 
 
 
-// ===============================
-// WEBHOOK ЮКАССА
-// ===============================
+}
+catch(error){
 
 
-app.post("/yookassa-webhook", async (req,res)=>{
+console.error("===== PAYMENT ERROR =====");
 
-
-  console.log("===== YOOKASSA WEBHOOK =====");
-
-  console.log(
-    JSON.stringify(req.body,null,2)
-  );
+console.error(
+error.response?.data || error
+);
 
 
 
-  try {
+res.status(500).json({
+
+error:"payment_creation_failed",
+
+details:error.response?.data || error.message
+
+});
 
 
-    if (
-      req.body.event === "payment.succeeded"
-    ) {
-
-
-      const payment =
-      req.body.object;
-
-
-
-      console.log(
-        "PAYMENT SUCCESS"
-      );
-
-
-      console.log(
-        "ID:",
-        payment.id
-      );
-
-
-      console.log(
-        "USER:",
-        payment.metadata.user_id
-      );
-
-
-      console.log(
-        "PRODUCT:",
-        payment.metadata.product
-      );
-
-
-
-      // отправляем событие в Botpress webhook
-
-      await fetch(
-        BOTPRESS_WEBHOOK_URL,
-        {
-
-          method: "POST",
-
-          headers: {
-
-            "Content-Type":
-            "application/json"
-
-          },
-
-
-          body: JSON.stringify({
-
-            user_id:
-            payment.metadata.user_id,
-
-
-            product:
-            payment.metadata.product,
-
-
-            payment_id:
-            payment.id,
-
-
-            amount:
-            payment.amount.value
-
-          })
-
-        }
-
-      );
-
-
-      console.log(
-        "SENT TO BOTPRESS"
-      );
-
-
-    }
-
-
-    res.send("OK");
-
-
-
-  } catch(error) {
-
-
-    console.error(
-      "WEBHOOK ERROR"
-    );
-
-
-    console.error(error);
-
-
-    res.status(500).send("ERROR");
-
-
-  }
+}
 
 
 });
@@ -287,14 +168,85 @@ app.post("/yookassa-webhook", async (req,res)=>{
 
 
 
-const PORT =
-process.env.PORT || 3000;
+// YOOKASSA WEBHOOK
+
+app.post("/yookassa-webhook",async(req,res)=>{
 
 
-app.listen(PORT, ()=>{
+console.log("===== YOOKASSA WEBHOOK =====");
 
-  console.log(
-    "Server running on port " + PORT
-  );
+console.log(JSON.stringify(req.body,null,2));
+
+
+
+try{
+
+
+if(req.body.event==="payment.succeeded"){
+
+
+const payment=req.body.object;
+
+
+await fetch(
+BOTPRESS_WEBHOOK_URL,
+{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({
+
+user_id:
+payment.metadata.user_id,
+
+product:
+payment.metadata.product,
+
+payment_id:
+payment.id
+
+})
+
+
+});
+
+
+console.log("SENT TO BOTPRESS");
+
+
+}
+
+
+
+res.send("OK");
+
+
+}
+catch(error){
+
+console.error(error);
+
+res.status(500).send("ERROR");
+
+}
+
+
+});
+
+
+
+
+const PORT=process.env.PORT || 3000;
+
+
+app.listen(PORT,()=>{
+
+console.log(
+"Server running on port "+PORT
+);
 
 });
