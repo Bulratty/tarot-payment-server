@@ -1,118 +1,116 @@
 const express = require("express");
+const { YooCheckout } = require("@a2seven/yoo-checkout");
+require("dotenv").config();
 
 const app = express();
 
 app.use(express.json());
 
 
+// ЮKassa клиент
+
+const checkout = new YooCheckout({
+  shopId: process.env.YOOKASSA_SHOP_ID,
+  secretKey: process.env.YOOKASSA_SECRET_KEY
+});
+
+
 // Проверка сервера
+
 app.get("/", (req, res) => {
   res.send("OK");
 });
 
 
-// ЮKassa webhook
-app.post("/yookassa-webhook", async (req, res) => {
+
+// ===============================
+// СОЗДАНИЕ ПЛАТЕЖА
+// ===============================
+
+app.post("/create-payment", async (req, res) => {
 
   try {
 
-    console.log("===== YOOKASSA WEBHOOK =====");
-    console.log(JSON.stringify(req.body, null, 2));
+    console.log("===== CREATE PAYMENT =====");
 
-
-    const event = req.body;
-
-
-    if (event.event !== "payment.succeeded") {
-      console.log("Не успешная оплата");
-      return res.send("OK");
-    }
-
-
-    const payment = event.object;
-
-
-    const product = payment.metadata?.product;
-    const userId = payment.metadata?.user_id;
-
-
-    console.log("===== PAYMENT DATA =====");
-    console.log("Payment ID:", payment.id);
-    console.log("Amount:", payment.amount.value);
-    console.log("Product:", product);
-    console.log("User ID:", userId);
-
-
-
-    if (!userId) {
-
-      console.log("ОШИБКА: нет user_id в metadata");
-
-      return res.send("OK");
-    }
-
-
-
-    // Отправка события в Botpress
-
-    const botpressResponse = await fetch(
-      "https://api.botpress.cloud/v1/chat/events",
-      {
-
-        method: "POST",
-
-        headers: {
-          "Content-Type": "application/json",
-
-          "Authorization":
-            "Bearer bp_bak_Y7BoOzYX4JLHAqJ6Nz9BAhxTch8uvdmBmERi",
-
-          "x-bot-id":
-            "081ebf8e-7639-489f-b02c-9e6db793b4c6"
-        },
-
-
-        body: JSON.stringify({
-
-          type: "payment_success",
-
-          userId: userId,
-
-          payload: {
-
-            product: product,
-
-            paymentId: payment.id,
-
-            amount: payment.amount.value
-
-          }
-
-        })
-
-      }
+    console.log(
+      JSON.stringify(req.body, null, 2)
     );
 
 
-    const result = await botpressResponse.text();
+    const {
+      amount,
+      description,
+      user_id,
+      product
+    } = req.body;
 
 
-    console.log("===== BOTPRESS RESPONSE =====");
-    console.log(result);
+    const payment = await checkout.createPayment({
+
+      amount: {
+
+        value: amount || "50.00",
+
+        currency: "RUB"
+
+      },
 
 
+      confirmation: {
 
-    res.send("OK");
+        type: "redirect",
+
+        return_url:
+        "https://t.me/your_bot"
+
+      },
 
 
-  } catch (error) {
+      capture: true,
 
 
-    console.error("WEBHOOK ERROR:");
+      description:
+      description || "Расклад Таро",
+
+
+      metadata: {
+
+        user_id: user_id,
+
+        product: product
+
+      }
+
+    });
+
+
+    console.log("PAYMENT CREATED:");
+
+    console.log(
+      JSON.stringify(payment, null, 2)
+    );
+
+
+    res.json(payment);
+
+
+  } catch(error) {
+
+
+    console.error(
+      "CREATE PAYMENT ERROR:"
+    );
+
     console.error(error);
 
 
-    res.status(500).send("ERROR");
+    res.status(500).json({
+
+      error:
+      "payment_creation_failed"
+
+    });
 
   }
 
@@ -120,15 +118,114 @@ app.post("/yookassa-webhook", async (req, res) => {
 
 
 
-// Запуск
 
-const PORT = process.env.PORT || 3000;
+// ===============================
+// WEBHOOK ЮKASSA
+// ===============================
+
+app.post("/yookassa-webhook", async (req, res) => {
+
+
+  try {
+
+
+    console.log(
+      "===== YOOKASSA WEBHOOK ====="
+    );
+
+
+    console.log(
+      JSON.stringify(req.body, null, 2)
+    );
+
+
+
+    const event = req.body;
+
+
+
+    if (
+      event.event === "payment.succeeded"
+    ) {
+
+
+      const payment = event.object;
+
+
+      console.log(
+        "PAYMENT SUCCESS"
+      );
+
+
+      console.log(
+        "ID:",
+        payment.id
+      );
+
+
+      console.log(
+        "AMOUNT:",
+        payment.amount.value
+      );
+
+
+      console.log(
+        "PRODUCT:",
+        payment.metadata?.product
+      );
+
+
+      console.log(
+        "USER:",
+        payment.metadata?.user_id
+      );
+
+
+    }
+
+
+
+    res.send("OK");
+
+
+
+  } catch(error) {
+
+
+    console.error(
+      "WEBHOOK ERROR:"
+    );
+
+
+    console.error(error);
+
+
+    res.status(500).send("ERROR");
+
+
+  }
+
+
+});
+
+
+
+
+// ===============================
+// START
+// ===============================
+
+
+const PORT =
+process.env.PORT || 3000;
 
 
 app.listen(PORT, () => {
 
+
   console.log(
     `Server running on port ${PORT}`
   );
+
 
 });
