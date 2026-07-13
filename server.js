@@ -8,16 +8,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Проверка работы сервера
+// Проверка сервера
 app.get("/", (req, res) => {
   res.send("OK");
 });
 
+// Создание платежа YooKassa
 app.post("/create-payment", async (req, res) => {
-  console.log("=== CREATE PAYMENT START ===");
-
   try {
-    console.log("BODY:");
+    console.log("=== CREATE PAYMENT REQUEST ===");
     console.log(req.body);
 
     const { amount, description } = req.body;
@@ -46,15 +45,19 @@ app.post("/create-payment", async (req, res) => {
         customer: {
           email: "test@example.com"
         },
+
         items: [
           {
             description: description || "Расклад Таро",
             quantity: 1,
+
             amount: {
               value: amount,
               currency: "RUB"
             },
-            vat_code: 1
+
+            vat_code: 1,
+            payment_subject: "service"
           }
         ]
       }
