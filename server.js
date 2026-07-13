@@ -13,7 +13,6 @@ app.get("/", (req, res) => {
   res.send("OK");
 });
 
-// Создание платежа YooKassa
 app.post("/create-payment", async (req, res) => {
   console.log("=== CREATE PAYMENT START ===");
 
@@ -33,12 +32,32 @@ app.post("/create-payment", async (req, res) => {
         value: amount,
         currency: "RUB"
       },
+
       confirmation: {
         type: "redirect",
         return_url: "https://studio.botpress.cloud"
       },
+
       capture: true,
-      description: description || "Оплата расклада Таро"
+
+      description: description || "Оплата расклада Таро",
+
+      receipt: {
+        customer: {
+          email: "test@example.com"
+        },
+        items: [
+          {
+            description: description || "Расклад Таро",
+            quantity: 1,
+            amount: {
+              value: amount,
+              currency: "RUB"
+            },
+            vat_code: 1
+          }
+        ]
+      }
     });
 
     console.log("PAYMENT CREATED:");
