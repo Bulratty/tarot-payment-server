@@ -9,6 +9,7 @@
   "dependencies": {
     "@a2seven/yoo-checkout": "^1.1.4",
     "axios": "^1.9.0",
+    "cors": "^2.8.6",
     "dotenv": "^16.5.0",
     "express": "^4.19.2",
     "uuid": "^10.0.0"
