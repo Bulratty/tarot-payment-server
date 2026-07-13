@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors");
-const { YooCheckout, CurrencyEnum } = require("@a2seven/yoo-checkout");
+const { YooCheckout } = require("@a2seven/yoo-checkout");
 require("dotenv").config();
 
 const app = express();
@@ -8,15 +8,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Проверка что сервер жив
+// Проверка работы сервера
 app.get("/", (req, res) => {
   res.send("OK");
 });
 
 // Создание платежа YooKassa
 app.post("/create-payment", async (req, res) => {
+  console.log("=== CREATE PAYMENT START ===");
+
   try {
-    console.log("CREATE PAYMENT REQUEST:");
+    console.log("BODY:");
     console.log(req.body);
 
     const { amount, description } = req.body;
@@ -29,7 +31,7 @@ app.post("/create-payment", async (req, res) => {
     const payment = await yooCheckout.createPayment({
       amount: {
         value: amount,
-        currency: CurrencyEnum.RUB
+        currency: "RUB"
       },
       confirmation: {
         type: "redirect",
@@ -40,7 +42,7 @@ app.post("/create-payment", async (req, res) => {
     });
 
     console.log("PAYMENT CREATED:");
-    console.log(payment.id);
+    console.log(payment);
 
     res.json(payment);
 
@@ -49,10 +51,12 @@ app.post("/create-payment", async (req, res) => {
 
     if (error.response) {
       console.error(error.response.data);
+
       return res.status(400).json(error.response.data);
     }
 
     console.error(error.message);
+
     res.status(500).json({
       error: error.message
     });
