@@ -8,95 +8,89 @@ const app = express();
 app.use(express.json());
 
 
-// =========================
+// =====================
 // Проверка сервера
-// =========================
+// =====================
 
 app.get("/", (req, res) => {
     res.send("OK");
 });
 
 
-// =========================
-// Возврат после оплаты YooKassa
-// =========================
+// =====================
+// Возврат после оплаты
+// =====================
 
 app.get("/payment-success", (req, res) => {
 
     res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>Оплата успешна</title>
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Оплата успешна</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    text-align: center;
+                    padding-top: 50px;
+                }
+                a {
+                    display: inline-block;
+                    margin-top: 20px;
+                    padding: 15px 25px;
+                    background: #0088cc;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 10px;
+                }
+            </style>
+        </head>
 
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                text-align: center;
-                padding-top: 50px;
-            }
+        <body>
 
-            .button {
-                display:inline-block;
-                margin-top:20px;
-                padding:15px 25px;
-                background:#0088cc;
-                color:white;
-                text-decoration:none;
-                border-radius:10px;
-                font-size:18px;
-            }
-        </style>
+            <h2>✅ Оплата прошла успешно</h2>
 
-    </head>
+            <p>
+            Вернитесь в Telegram к боту.
+            </p>
 
-    <body>
+            <a href="https://t.me/arcana_cards_bot">
+                Открыть Telegram
+            </a>
 
-        <h2>✅ Оплата прошла успешно</h2>
-
-        <p>
-        Вернитесь в Telegram к боту.
-        </p>
-
-        <a class="button" href="https://t.me/arcana_cards_bot">
-            Открыть Telegram
-        </a>
-
-    </body>
-    </html>
+        </body>
+        </html>
     `);
 
 });
 
 
-// =========================
+
+// =====================
 // YooKassa
-// =========================
+// =====================
 
 const checkout = new YooCheckout({
 
-    shopId:
-    process.env.YOOKASSA_SHOP_ID,
+    shopId: process.env.YOOKASSA_SHOP_ID,
 
-    secretKey:
-    process.env.YOOKASSA_SECRET_KEY
+    secretKey: process.env.YOOKASSA_SECRET_KEY
 
 });
 
 
-// =========================
+
+// =====================
 // Создание платежа
-// =========================
+// =====================
 
-app.post("/create-payment", async (req,res)=>{
-
+app.post("/create-payment", async (req, res) => {
 
     try {
 
 
         const payment = {
-
 
             amount: {
 
@@ -111,8 +105,10 @@ app.post("/create-payment", async (req,res)=>{
 
                 type: "redirect",
 
-                return_url: 
-                
+                // ВАЖНО:
+                // больше НЕ возвращаем в Telegram /start
+
+                return_url:
                 "https://tarot-payment-server-1.onrender.com/payment-success"
 
             },
@@ -122,11 +118,12 @@ app.post("/create-payment", async (req,res)=>{
 
 
             description:
+
             "Расклад Таро Три карты",
 
 
-            receipt: {
 
+            receipt: {
 
                 customer: {
 
@@ -180,8 +177,7 @@ app.post("/create-payment", async (req,res)=>{
 
 
 
-        const result =
-        await checkout.createPayment(
+        const result = await checkout.createPayment(
 
             payment,
 
@@ -202,6 +198,8 @@ app.post("/create-payment", async (req,res)=>{
         );
 
 
+
+        // Именно это поле ждёт Botpress
 
         res.json({
 
@@ -228,23 +226,21 @@ app.post("/create-payment", async (req,res)=>{
 
         });
 
-
     }
-
 
 });
 
 
 
-// =========================
+// =====================
 // Запуск
-// =========================
+// =====================
 
 const PORT =
 process.env.PORT || 3000;
 
 
-app.listen(PORT, ()=>{
+app.listen(PORT, () => {
 
     console.log(
         `Server started on port ${PORT}`
