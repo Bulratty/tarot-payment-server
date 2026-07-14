@@ -34,7 +34,7 @@ app.post("/create-payment", async (req, res) => {
 
       confirmation: {
         type: "redirect",
-        return_url: "https://studio.botpress.cloud"
+        return_url: "https://t.me/arcana_cards_bot?start=payment_success"
       },
 
       capture: true,
@@ -73,6 +73,7 @@ app.post("/create-payment", async (req, res) => {
     res.json(payment);
 
   } catch (error) {
+
     console.error("PAYMENT ERROR:");
 
     if (error.response) {
