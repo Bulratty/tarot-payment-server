@@ -13,7 +13,10 @@ app.use(express.json());
 const payments = {};
 
 
-// Проверка сервера
+// ===============================
+// ПРОВЕРКА СЕРВЕРА
+// ===============================
+
 app.get("/", (req, res) => {
   res.send("OK");
 });
@@ -37,6 +40,7 @@ app.post("/create-payment", async (req, res) => {
       user_id,
       product
     } = req.body;
+
 
 
     const yooCheckout = new YooCheckout({
@@ -127,12 +131,11 @@ app.post("/create-payment", async (req, res) => {
 
 
     console.log("PAYMENT CREATED:");
-
     console.log(payment);
 
 
 
-    // сохраняем заказ
+    // сохраняем платеж
 
     payments[payment.id] = {
 
@@ -245,11 +248,12 @@ app.post("/yookassa/webhook", (req, res) => {
       );
 
 
+
     } else {
 
 
       console.log(
-        "PAYMENT NOT FOUND"
+        "PAYMENT NOT FOUND IN MEMORY"
       );
 
 
@@ -268,11 +272,86 @@ app.post("/yookassa/webhook", (req, res) => {
 
 
 // ===============================
-// START SERVER
+// ПРОВЕРКА ОПЛАТЫ ДЛЯ BOTPRESS
+// ===============================
+
+app.get("/check-payment", (req, res) => {
+
+
+  const userId =
+  req.query.user_id;
+
+
+
+  console.log("=== CHECK PAYMENT ===");
+
+
+  console.log(
+    "USER ID:",
+    userId
+  );
+
+
+
+  const payment =
+  Object.values(payments)
+  .find(
+    item =>
+    item.user_id === userId
+  );
+
+
+
+  if(!payment){
+
+
+    console.log(
+      "PAYMENT NOT FOUND"
+    );
+
+
+    return res.json({
+
+      paid: false
+
+    });
+
+
+  }
+
+
+
+  console.log(
+    "FOUND PAYMENT:"
+  );
+
+
+  console.log(payment);
+
+
+
+  res.json({
+
+    paid:
+    payment.status === "paid",
+
+    product:
+    payment.product
+
+  });
+
+
+});
+
+
+
+// ===============================
+// ЗАПУСК СЕРВЕРА
 // ===============================
 
 const PORT =
 process.env.PORT || 3000;
+
 
 
 app.listen(PORT, () => {
