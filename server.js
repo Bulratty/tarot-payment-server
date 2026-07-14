@@ -1,249 +1,293 @@
 const express = require("express");
-const crypto = require("crypto");
+const cors = require("cors");
 const { YooCheckout } = require("@a2seven/yoo-checkout");
 require("dotenv").config();
 
 const app = express();
 
+app.use(cors());
 app.use(express.json());
 
+const payments = {};
 
-// =====================
-// Проверка сервера
-// =====================
 
+// проверка
 app.get("/", (req, res) => {
-    res.send("OK");
+  res.send("OK");
 });
 
 
-// =====================
-// Возврат после оплаты
-// =====================
-
-app.get("/payment-success", (req, res) => {
-
-    res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>Оплата успешна</title>
-            <style>
-                body {
-                    font-family: Arial, sans-serif;
-                    text-align: center;
-                    padding-top: 50px;
-                }
-                a {
-                    display: inline-block;
-                    margin-top: 20px;
-                    padding: 15px 25px;
-                    background: #0088cc;
-                    color: white;
-                    text-decoration: none;
-                    border-radius: 10px;
-                }
-            </style>
-        </head>
-
-        <body>
-
-            <h2>✅ Оплата прошла успешно</h2>
-
-            <p>
-            Вернитесь в Telegram к боту.
-            </p>
-
-            <a href="https://t.me/arcana_cards_bot">
-                Открыть Telegram
-            </a>
-
-        </body>
-        </html>
-    `);
-
-});
-
-
-
-// =====================
-// YooKassa
-// =====================
-
-const checkout = new YooCheckout({
-
-    shopId: process.env.YOOKASSA_SHOP_ID,
-
-    secretKey: process.env.YOOKASSA_SECRET_KEY
-
-});
-
-
-
-// =====================
-// Создание платежа
-// =====================
-
+// создание платежа
 app.post("/create-payment", async (req, res) => {
 
-    try {
+  try {
+
+    console.log("=== CREATE PAYMENT REQUEST ===");
+    console.log(req.body);
 
 
-        const payment = {
+    const {
+      amount,
+      description,
+      user_id,
+      chat_id,
+      product
+    } = req.body;
+
+
+    const yooCheckout = new YooCheckout({
+
+      shopId: process.env.YOOKASSA_SHOP_ID,
+
+      secretKey: process.env.YOOKASSA_SECRET_KEY
+
+    });
+
+
+
+    const payment = await yooCheckout.createPayment({
+
+      amount: {
+
+        value: amount,
+
+        currency: "RUB"
+
+      },
+
+
+      confirmation: {
+
+        type: "redirect",
+
+        return_url:
+        "https://t.me/arcana_cards_bot"
+
+      },
+
+
+      capture: true,
+
+
+      description,
+
+
+      receipt: {
+
+        customer: {
+
+          email: "test@example.com"
+
+        },
+
+        items: [
+
+          {
+
+            description,
+
+            quantity: 1,
 
             amount: {
 
-                value: "1.00",
+              value: amount,
 
-                currency: "RUB"
-
-            },
-
-
-            confirmation: {
-
-                type: "redirect",
-
-                // ВАЖНО:
-                // больше НЕ возвращаем в Telegram /start
-
-                return_url:
-                "https://tarot-payment-server-1.onrender.com/payment-success"
+              currency: "RUB"
 
             },
 
+            vat_code: 1,
 
-            capture: true,
+            payment_subject: "service",
 
+            payment_mode: "full_payment"
 
-            description:
+          }
 
-            "Расклад Таро Три карты",
+        ]
 
+      }
 
-
-            receipt: {
-
-                customer: {
-
-                    email:
-                    "test@example.com"
-
-                },
-
-
-                items: [
-
-                    {
-
-                        description:
-                        "Расклад Таро Три карты",
-
-
-                        quantity:
-                        "1",
-
-
-                        amount: {
-
-                            value:
-                            "1.00",
-
-                            currency:
-                            "RUB"
-
-                        },
-
-
-                        vat_code:
-                        1,
-
-
-                        payment_subject:
-                        "service",
-
-
-                        payment_mode:
-                        "full_payment"
-
-                    }
-
-                ]
-
-            }
-
-        };
+    });
 
 
 
-        const result = await checkout.createPayment(
+    payments[payment.id] = {
 
-            payment,
+      user_id,
 
-            {
+      chat_id,
 
-                idempotenceKey:
-                crypto.randomUUID()
+      product,
 
-            }
+      status: "pending"
 
-        );
-
+    };
 
 
-        console.log(
-            "Payment created:",
-            result.id
-        );
+    console.log("SAVED PAYMENT:");
+    console.log(payments[payment.id]);
 
 
-
-        // Именно это поле ждёт Botpress
-
-        res.json({
-
-            confirmation_url:
-            result.confirmation.confirmation_url
-
-        });
+    res.json(payment);
 
 
+  } catch(error){
 
-    } catch(error) {
+    console.error(error);
 
+    res.status(500).json({
 
-        console.error(
-            "Payment error:",
-            error
-        );
+      error:error.message
 
+    });
 
-        res.status(500).json({
-
-            error:
-            error.message
-
-        });
-
-    }
+  }
 
 });
 
 
 
-// =====================
-// Запуск
-// =====================
-
-const PORT =
-process.env.PORT || 3000;
+// webhook YooKassa
+app.post("/yookassa/webhook", async (req,res)=>{
 
 
-app.listen(PORT, () => {
+  console.log("=== YOOKASSA WEBHOOK ===");
+
+  console.log(
+    JSON.stringify(req.body,null,2)
+  );
+
+
+  const event=req.body;
+
+
+  if(event.event==="payment.succeeded"){
+
+
+    const paymentId=event.object.id;
+
 
     console.log(
-        `Server started on port ${PORT}`
+      "SUCCESS PAYMENT:",
+      paymentId
     );
+
+
+    const payment=payments[paymentId];
+
+
+    if(payment){
+
+
+      payment.status="paid";
+
+
+      console.log(
+        "PAYMENT UPDATED:"
+      );
+
+      console.log(payment);
+
+
+
+      if(payment.chat_id){
+
+
+        await fetch(
+          `https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`,
+          {
+
+            method:"POST",
+
+            headers:{
+              "Content-Type":"application/json"
+            },
+
+            body:JSON.stringify({
+
+              chat_id: payment.chat_id,
+
+              text:
+              "🔮 Оплата получена!\n\nВаш расклад «Три карты» готов."
+
+            })
+
+          }
+
+        );
+
+
+        console.log(
+          "MESSAGE SENT TO TELEGRAM"
+        );
+
+
+      } else {
+
+
+        console.log(
+          "NO CHAT ID"
+        );
+
+
+      }
+
+
+    }
+
+
+  }
+
+
+  res.sendStatus(200);
+
+});
+
+
+// проверка оплаты
+app.get("/check-payment",(req,res)=>{
+
+
+ const userId=req.query.user_id;
+
+
+ const payment=
+ Object.values(payments)
+ .find(
+  p=>p.user_id===userId
+ );
+
+
+ if(!payment){
+
+  return res.json({
+    paid:false
+  });
+
+ }
+
+
+ res.json({
+
+  paid:payment.status==="paid",
+
+  product:payment.product
+
+ });
+
+
+});
+
+
+
+const PORT=process.env.PORT||3000;
+
+
+app.listen(PORT,()=>{
+
+ console.log(
+  `Server running on port ${PORT}`
+ );
 
 });
