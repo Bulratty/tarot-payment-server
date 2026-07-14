@@ -8,90 +8,277 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+
+// временное хранилище платежей
+const payments = {};
+
+
 // Проверка сервера
 app.get("/", (req, res) => {
   res.send("OK");
 });
 
-// Создание платежа YooKassa
+
+// ===============================
+// СОЗДАНИЕ ПЛАТЕЖА YOOKASSA
+// ===============================
+
 app.post("/create-payment", async (req, res) => {
+
   try {
+
     console.log("=== CREATE PAYMENT REQUEST ===");
     console.log(req.body);
 
-    const { amount, description } = req.body;
+
+    const {
+      amount,
+      description,
+      user_id,
+      product
+    } = req.body;
+
 
     const yooCheckout = new YooCheckout({
+
       shopId: process.env.YOOKASSA_SHOP_ID,
+
       secretKey: process.env.YOOKASSA_SECRET_KEY
+
     });
 
+
+
     const payment = await yooCheckout.createPayment({
+
       amount: {
+
         value: amount,
+
         currency: "RUB"
+
       },
 
+
       confirmation: {
+
         type: "redirect",
-        return_url: "https://t.me/arcana_cards_bot?start=payment_success"
+
+        return_url:
+        "https://t.me/arcana_cards_bot?start=payment_success"
+
       },
+
 
       capture: true,
 
-      description: description || "Оплата расклада Таро",
+
+      description:
+      description || "Оплата расклада Таро",
+
+
 
       receipt: {
+
         customer: {
+
           email: "test@example.com"
+
         },
 
+
         items: [
+
           {
-            description: description || "Расклад Таро",
+
+            description:
+            description || "Расклад Таро",
+
 
             quantity: 1,
 
+
             amount: {
+
               value: amount,
+
               currency: "RUB"
+
             },
+
 
             vat_code: 1,
 
+
             payment_subject: "service",
 
+
             payment_mode: "full_payment"
+
           }
+
         ]
+
       }
+
+
     });
 
+
+
     console.log("PAYMENT CREATED:");
+
     console.log(payment);
+
+
+
+    // сохраняем заказ
+
+    payments[payment.id] = {
+
+      user_id: user_id,
+
+      product: product,
+
+      status: "pending"
+
+    };
+
+
+
+    console.log("SAVED PAYMENT:");
+
+    console.log(payments[payment.id]);
+
+
 
     res.json(payment);
 
-  } catch (error) {
+
+
+  } catch(error) {
+
 
     console.error("PAYMENT ERROR:");
 
-    if (error.response) {
+
+
+    if(error.response){
+
       console.error(error.response.data);
-      return res.status(400).json(error.response.data);
+
+      return res
+      .status(400)
+      .json(error.response.data);
+
     }
+
+
 
     console.error(error.message);
 
+
+
     res.status(500).json({
+
       error: error.message
+
     });
+
+
   }
+
 });
 
 
-const PORT = process.env.PORT || 3000;
+
+// ===============================
+// WEBHOOK YOOKASSA
+// ===============================
+
+app.post("/yookassa/webhook", (req, res) => {
+
+
+  console.log("=== YOOKASSA WEBHOOK ===");
+
+
+  console.log(
+    JSON.stringify(req.body, null, 2)
+  );
+
+
+
+  const event = req.body;
+
+
+
+  if(event.event === "payment.succeeded"){
+
+
+    const paymentId =
+    event.object.id;
+
+
+
+    console.log(
+      "SUCCESS PAYMENT:",
+      paymentId
+    );
+
+
+
+    if(payments[paymentId]){
+
+
+      payments[paymentId].status =
+      "paid";
+
+
+
+      console.log(
+        "PAYMENT UPDATED:"
+      );
+
+
+      console.log(
+        payments[paymentId]
+      );
+
+
+    } else {
+
+
+      console.log(
+        "PAYMENT NOT FOUND"
+      );
+
+
+    }
+
+
+  }
+
+
+
+  res.sendStatus(200);
+
+
+});
+
+
+
+// ===============================
+// START SERVER
+// ===============================
+
+const PORT =
+process.env.PORT || 3000;
+
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+
+  console.log(
+    `Server running on port ${PORT}`
+  );
+
 });
