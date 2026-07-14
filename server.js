@@ -8,16 +8,24 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+
+// временное хранилище платежей
 const payments = {};
 
 
-// проверка
+// ===============================
+// ПРОВЕРКА СЕРВЕРА
+// ===============================
+
 app.get("/", (req, res) => {
   res.send("OK");
 });
 
 
-// создание платежа
+// ===============================
+// СОЗДАНИЕ ПЛАТЕЖА YOOKASSA
+// ===============================
+
 app.post("/create-payment", async (req, res) => {
 
   try {
@@ -30,9 +38,9 @@ app.post("/create-payment", async (req, res) => {
       amount,
       description,
       user_id,
-      chat_id,
       product
     } = req.body;
+
 
 
     const yooCheckout = new YooCheckout({
@@ -61,7 +69,7 @@ app.post("/create-payment", async (req, res) => {
         type: "redirect",
 
         return_url:
-        "https://t.me/arcana_cards_bot"
+        "https://t.me/arcana_cards_bot?start=paid_three_cards"
 
       },
 
@@ -69,7 +77,9 @@ app.post("/create-payment", async (req, res) => {
       capture: true,
 
 
-      description,
+      description:
+      description || "Оплата расклада Таро",
+
 
 
       receipt: {
@@ -80,13 +90,17 @@ app.post("/create-payment", async (req, res) => {
 
         },
 
+
         items: [
 
           {
 
-            description,
+            description:
+            description || "Расклад Таро",
+
 
             quantity: 1,
+
 
             amount: {
 
@@ -96,9 +110,12 @@ app.post("/create-payment", async (req, res) => {
 
             },
 
+
             vat_code: 1,
 
+
             payment_subject: "service",
+
 
             payment_mode: "full_payment"
 
@@ -108,17 +125,21 @@ app.post("/create-payment", async (req, res) => {
 
       }
 
+
     });
+
+
+
+    console.log("PAYMENT CREATED:");
+    console.log(payment);
 
 
 
     payments[payment.id] = {
 
-      user_id,
+      user_id: user_id,
 
-      chat_id,
-
-      product,
+      product: product,
 
       status: "pending"
 
@@ -129,18 +150,40 @@ app.post("/create-payment", async (req, res) => {
     console.log(payments[payment.id]);
 
 
+
     res.json(payment);
 
 
-  } catch(error){
 
-    console.error(error);
+  } catch(error) {
+
+
+    console.error("PAYMENT ERROR:");
+
+
+
+    if(error.response){
+
+      console.error(error.response.data);
+
+      return res
+      .status(400)
+      .json(error.response.data);
+
+    }
+
+
+
+    console.error(error.message);
+
+
 
     res.status(500).json({
 
-      error:error.message
+      error: error.message
 
     });
+
 
   }
 
@@ -148,24 +191,33 @@ app.post("/create-payment", async (req, res) => {
 
 
 
-// webhook YooKassa
-app.post("/yookassa/webhook", async (req,res)=>{
+
+// ===============================
+// WEBHOOK YOOKASSA
+// ===============================
+
+app.post("/yookassa/webhook", (req, res) => {
 
 
   console.log("=== YOOKASSA WEBHOOK ===");
 
+
   console.log(
-    JSON.stringify(req.body,null,2)
+    JSON.stringify(req.body, null, 2)
   );
 
 
-  const event=req.body;
+
+  const event = req.body;
 
 
-  if(event.event==="payment.succeeded"){
+
+  if(event.event === "payment.succeeded"){
 
 
-    const paymentId=event.object.id;
+    const paymentId =
+    event.object.id;
+
 
 
     console.log(
@@ -174,64 +226,32 @@ app.post("/yookassa/webhook", async (req,res)=>{
     );
 
 
-    const payment=payments[paymentId];
+
+    if(payments[paymentId]){
 
 
-    if(payment){
+      payments[paymentId].status =
+      "paid";
 
-
-      payment.status="paid";
 
 
       console.log(
         "PAYMENT UPDATED:"
       );
 
-      console.log(payment);
+
+      console.log(
+        payments[paymentId]
+      );
 
 
 
-      if(payment.chat_id){
+    } else {
 
 
-        await fetch(
-          `https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`,
-          {
-
-            method:"POST",
-
-            headers:{
-              "Content-Type":"application/json"
-            },
-
-            body:JSON.stringify({
-
-              chat_id: payment.chat_id,
-
-              text:
-              "🔮 Оплата получена!\n\nВаш расклад «Три карты» готов."
-
-            })
-
-          }
-
-        );
-
-
-        console.log(
-          "MESSAGE SENT TO TELEGRAM"
-        );
-
-
-      } else {
-
-
-        console.log(
-          "NO CHAT ID"
-        );
-
-
-      }
+      console.log(
+        "PAYMENT NOT FOUND IN MEMORY"
+      );
 
 
     }
@@ -240,54 +260,87 @@ app.post("/yookassa/webhook", async (req,res)=>{
   }
 
 
+
   res.sendStatus(200);
 
+
 });
 
 
-// проверка оплаты
-app.get("/check-payment",(req,res)=>{
+
+// ===============================
+// ПРОВЕРКА ОПЛАТЫ
+// ===============================
+
+app.get("/check-payment", (req, res) => {
 
 
- const userId=req.query.user_id;
+  const userId =
+  req.query.user_id;
 
 
- const payment=
- Object.values(payments)
- .find(
-  p=>p.user_id===userId
- );
+
+  console.log("=== CHECK PAYMENT ===");
 
 
- if(!payment){
+  console.log(
+    userId
+  );
 
-  return res.json({
-    paid:false
+
+
+  const payment =
+  Object.values(payments)
+  .find(
+    item =>
+    item.user_id === userId
+  );
+
+
+
+  if(!payment){
+
+
+    return res.json({
+
+      paid:false
+
+    });
+
+
+  }
+
+
+
+  res.json({
+
+    paid:
+    payment.status === "paid",
+
+    product:
+    payment.product
+
   });
 
- }
-
-
- res.json({
-
-  paid:payment.status==="paid",
-
-  product:payment.product
-
- });
-
 
 });
 
 
 
-const PORT=process.env.PORT||3000;
+
+// ===============================
+// START SERVER
+// ===============================
+
+const PORT =
+process.env.PORT || 3000;
 
 
-app.listen(PORT,()=>{
 
- console.log(
-  `Server running on port ${PORT}`
- );
+app.listen(PORT, () => {
+
+  console.log(
+    `Server running on port ${PORT}`
+  );
 
 });
