@@ -61,7 +61,7 @@ app.post("/create-payment", async (req, res) => {
         type: "redirect",
 
         return_url:
-        "https://t.me/arcana_cards_bot"
+        https://t.me/arcana_cards_bot?start=paid_three_cards
 
       },
 
