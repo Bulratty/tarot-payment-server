@@ -64,8 +64,9 @@ async function sendThreeCardsReading(chatId) {
     })
   });
 
-  // Три карты фото + подпись (с retry на случай сбоя загрузки картинки)
-  for (const pos of positions) {
+  // Три карты фото + подпись (с retry и паузой между картами)
+  for (let i = 0; i < positions.length; i++) {
+    const pos = positions[i];
     let result = null;
     for (let attempt = 1; attempt <= 3; attempt++) {
       const res = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendPhoto`, {
@@ -95,6 +96,11 @@ async function sendThreeCardsReading(chatId) {
       });
       console.error("PHOTO REPLACED WITH TEXT FALLBACK:", pos.card.name);
     }
+
+    // Пауза между картами, чтобы Telegram успевал стабильно подгружать картинки
+    if (i < positions.length - 1) {
+      await new Promise(r => setTimeout(r, 1500));
+    }
   }
 
   // Послание + кнопка возврата в меню
@@ -105,7 +111,7 @@ async function sendThreeCardsReading(chatId) {
       chat_id: chatId,
       text: buildMessage(cardsDrawn) + "\n\n━━━━━━━━━━━━━━━━━━━━\n🔄 Нажмите кнопку ниже чтобы выбрать другой расклад",
       reply_markup: {
-        inline_keyboard: [[{ text: "🔄 Выбрать другой расклад", callback_data: "back_to_menu" }]]
+        inline_keyboard: [[{ text: "🔄 Выбрать другой расклад", url: "https://t.me/arcana_cards_bot?start=menu" }]]
       }
     })
   });
@@ -133,7 +139,7 @@ app.post("/create-payment", async (req, res) => {
       amount: { value: amount, currency: "RUB" },
       confirmation: {
         type: "redirect",
-        return_url: "https://t.me/arcana_cards_bot?start=paid_three_cards"
+        return_url: "https://t.me/arcana_cards_bot"
       },
       capture: true,
       description,
