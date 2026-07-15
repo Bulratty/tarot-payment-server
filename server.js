@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const { YooCheckout } = require("@a2seven/yoo-checkout");
+const cards = require("./cards.json");
 require("dotenv").config();
 
 const app = express();
@@ -9,12 +10,97 @@ app.use(express.json());
 
 const payments = {};
 
-// проверка
+// ==================== ТАРО: генерация расклада без LLM ====================
+
+function drawThreeCards() {
+  const shuffled = [...cards].sort(() => Math.random() - 0.5);
+  const picked = shuffled.slice(0, 3).map(card => ({
+    ...card,
+    reversed: Math.random() < 0.5
+  }));
+  return picked; // [прошлое, настоящее, будущее]
+}
+
+function cardCaption(card, positionLabel, positionEmoji) {
+  const orientation = card.reversed ? "🔄 Перевёрнутое положение" : "✨ Прямое положение";
+  const meaning = card.reversed ? card.reversed : card.upright;
+  return (
+    `${positionEmoji} ${positionLabel}\n\n` +
+    `🎴 ${card.name}\n` +
+    `${orientation}\n\n` +
+    `💫 ${meaning}\n\n` +
+    `🔑 Совет: ${card.advice}`
+  );
+}
+
+function buildMessage(cardsDrawn) {
+  const [past, present, future] = cardsDrawn;
+  return (
+    `🔮 ПОСЛАНИЕ ВСЕЛЕННОЙ\n\n` +
+    `Карта «${past.name}» показывает, что привело тебя к текущей точке. ` +
+    `Сейчас, с картой «${present.name}», ты находишься в состоянии, которое требует твоего внимания прямо сейчас. ` +
+    `А «${future.name}» указывает направление, куда ведёт твой путь, если ты продолжишь двигаться в этом русле.\n\n` +
+    `💫 Энергии уже в движении. Доверься мудрости карт.`
+  );
+}
+
+async function sendThreeCardsReading(chatId) {
+  const cardsDrawn = drawThreeCards();
+  const [past, present, future] = cardsDrawn;
+
+  const positions = [
+    { card: past, label: "ПРОШЛОЕ — что привело тебя сюда", emoji: "🕰️" },
+    { card: present, label: "НАСТОЯЩЕЕ — твоя текущая точка силы", emoji: "🔮" },
+    { card: future, label: "БУДУЩЕЕ — куда ведёт твой путь", emoji: "🌟" }
+  ];
+
+  // Заголовок
+  await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: "✨ РАСКЛАД «ТРИ КАРТЫ»\n\nПогружение в потоки времени\n━━━━━━━━━━━━━━━━━━━━"
+    })
+  });
+
+  // Три карты фото + подпись
+  for (const pos of positions) {
+    const res = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendPhoto`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        photo: pos.card.image,
+        caption: cardCaption(pos.card, pos.label, pos.emoji)
+      })
+    });
+    const result = await res.json();
+    if (!result.ok) {
+      console.error("SEND PHOTO FAILED:", pos.card.name, result);
+    }
+  }
+
+  // Послание + кнопка возврата в меню
+  await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: buildMessage(cardsDrawn) + "\n\n━━━━━━━━━━━━━━━━━━━━\n🔄 Нажмите кнопку ниже чтобы выбрать другой расклад",
+      reply_markup: {
+        inline_keyboard: [[{ text: "🔄 Выбрать другой расклад", callback_data: "back_to_menu" }]]
+      }
+    })
+  });
+}
+
+// ==================== СЕРВЕР ====================
+
 app.get("/", (req, res) => {
   res.send("OK");
 });
 
-// создание платежа
 app.post("/create-payment", async (req, res) => {
   try {
     console.log("=== CREATE PAYMENT REQUEST ===");
@@ -28,10 +114,7 @@ app.post("/create-payment", async (req, res) => {
     });
 
     const payment = await yooCheckout.createPayment({
-      amount: {
-        value: amount,
-        currency: "RUB"
-      },
+      amount: { value: amount, currency: "RUB" },
       confirmation: {
         type: "redirect",
         return_url: "https://t.me/arcana_cards_bot?start=paid_three_cards"
@@ -39,17 +122,12 @@ app.post("/create-payment", async (req, res) => {
       capture: true,
       description,
       receipt: {
-        customer: {
-          email: "test@example.com"
-        },
+        customer: { email: "test@example.com" },
         items: [
           {
             description,
             quantity: 1,
-            amount: {
-              value: amount,
-              currency: "RUB"
-            },
+            amount: { value: amount, currency: "RUB" },
             vat_code: 1,
             payment_subject: "service",
             payment_mode: "full_payment"
@@ -58,16 +136,9 @@ app.post("/create-payment", async (req, res) => {
       }
     });
 
-    payments[payment.id] = {
-      user_id,
-      chat_id,
-      product,
-      status: "pending"
-    };
+    payments[payment.id] = { user_id, chat_id, product, status: "pending" };
 
-    console.log("SAVED PAYMENT:");
-    console.log(payments[payment.id]);
-
+    console.log("SAVED PAYMENT:", payments[payment.id]);
     res.json(payment);
   } catch (error) {
     console.error(error);
@@ -75,7 +146,6 @@ app.post("/create-payment", async (req, res) => {
   }
 });
 
-// webhook YooKassa
 app.post("/yookassa/webhook", async (req, res) => {
   console.log("=== YOOKASSA WEBHOOK ===");
   console.log(JSON.stringify(req.body, null, 2));
@@ -90,33 +160,26 @@ app.post("/yookassa/webhook", async (req, res) => {
 
     if (payment) {
       payment.status = "paid";
-      console.log("PAYMENT UPDATED:");
-      console.log(payment);
+      console.log("PAYMENT UPDATED:", payment);
 
       if (payment.chat_id) {
         try {
-          const tgRes = await fetch(
-            `https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`,
-            {
+          if (payment.product === "three_cards") {
+            await sendThreeCardsReading(payment.chat_id);
+            console.log("THREE CARDS READING SENT");
+          } else {
+            // заглушка для остальных продуктов, пока не подключены
+            await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 chat_id: payment.chat_id,
-                text: "🔮 Оплата получена!\n\nВаш расклад «Три карты» готов."
+                text: "🔮 Оплата получена! Ваш расклад готовится."
               })
-            }
-          );
-
-          const tgResult = await tgRes.json();
-          console.log("TELEGRAM API RESPONSE:", JSON.stringify(tgResult));
-
-          if (!tgRes.ok) {
-            console.error("TELEGRAM SEND FAILED:", tgResult);
-          } else {
-            console.log("MESSAGE SENT TO TELEGRAM");
+            });
           }
         } catch (tgError) {
-          console.error("TELEGRAM REQUEST ERROR:", tgError);
+          console.error("TELEGRAM SEND ERROR:", tgError);
         }
       } else {
         console.log("NO CHAT ID");
@@ -129,7 +192,6 @@ app.post("/yookassa/webhook", async (req, res) => {
   res.sendStatus(200);
 });
 
-// проверка оплаты
 app.get("/check-payment", (req, res) => {
   const userId = req.query.user_id;
   const payment = Object.values(payments).find(p => p.user_id === userId);
@@ -138,10 +200,7 @@ app.get("/check-payment", (req, res) => {
     return res.json({ paid: false });
   }
 
-  res.json({
-    paid: payment.status === "paid",
-    product: payment.product
-  });
+  res.json({ paid: payment.status === "paid", product: payment.product });
 });
 
 const PORT = process.env.PORT || 3000;
