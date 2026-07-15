@@ -64,20 +64,36 @@ async function sendThreeCardsReading(chatId) {
     })
   });
 
-  // Три карты фото + подпись
+  // Три карты фото + подпись (с retry на случай сбоя загрузки картинки)
   for (const pos of positions) {
-    const res = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendPhoto`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        photo: pos.card.image,
-        caption: cardCaption(pos.card, pos.label, pos.emoji)
-      })
-    });
-    const result = await res.json();
-    if (!result.ok) {
-      console.error("SEND PHOTO FAILED:", pos.card.name, result);
+    let result = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const res = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendPhoto`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          photo: pos.card.image,
+          caption: cardCaption(pos.card, pos.label, pos.emoji)
+        })
+      });
+      result = await res.json();
+      if (result.ok) break;
+      console.error(`SEND PHOTO FAILED (attempt ${attempt}):`, pos.card.name, result);
+      await new Promise(r => setTimeout(r, 800)); // пауза перед повтором
+    }
+
+    // Если фото так и не ушло после 3 попыток — шлём хотя бы текст, чтобы карта не потерялась
+    if (!result || !result.ok) {
+      await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: cardCaption(pos.card, pos.label, pos.emoji)
+        })
+      });
+      console.error("PHOTO REPLACED WITH TEXT FALLBACK:", pos.card.name);
     }
   }
 
