@@ -248,6 +248,18 @@ async function sendReading(chatId, spreadKey) {
   });
 }
 
+// ==================== РЕЕСТР ПОЛЬЗОВАТЕЛЕЙ (для напоминаний) ====================
+
+async function upsertBotUser(userId, chatId) {
+  if (!userId || !chatId) return;
+  const { error } = await supabase
+    .from("bot_users")
+    .upsert({ user_id: userId, chat_id: chatId, last_seen: new Date().toISOString() }, { onConflict: "user_id" });
+  if (error) {
+    console.error("BOT USER UPSERT ERROR:", error);
+  }
+}
+
 // ==================== СЕРВЕР ====================
 
 app.get("/", (req, res) => {
@@ -260,6 +272,7 @@ app.post("/create-payment", async (req, res) => {
     console.log(req.body);
 
     const { amount, description, user_id, chat_id, product } = req.body;
+    await upsertBotUser(user_id, chat_id);
 
     const yooCheckout = new YooCheckout({
       shopId: process.env.YOOKASSA_SHOP_ID,
@@ -438,6 +451,8 @@ app.post("/daily-card", async (req, res) => {
       return res.status(400).json({ error: "user_id and chat_id required" });
     }
 
+    await upsertBotUser(user_id, chat_id);
+
     const today = getTodayDateMoscow();
 
     // Проверяем, была ли уже выдана карта сегодня
@@ -488,6 +503,74 @@ app.post("/daily-card", async (req, res) => {
 
   } catch (error) {
     console.error("DAILY CARD ERROR:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== НАПОМИНАНИЯ ====================
+
+app.post("/send-reminders", async (req, res) => {
+  try {
+    const secret = req.query.secret || req.headers["x-reminder-secret"];
+    if (secret !== process.env.REMINDER_SECRET) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    console.log("=== SEND REMINDERS START ===");
+
+    const today = getTodayDateMoscow();
+
+    const { data: allUsers, error: usersError } = await supabase
+      .from("bot_users")
+      .select("user_id, chat_id");
+
+    if (usersError) {
+      console.error("REMINDERS: FETCH USERS ERROR:", usersError);
+      return res.status(500).json({ error: "Failed to fetch users" });
+    }
+
+    const { data: drawnToday, error: drawnError } = await supabase
+      .from("daily_cards")
+      .select("user_id")
+      .eq("drawn_date", today);
+
+    if (drawnError) {
+      console.error("REMINDERS: FETCH DRAWN ERROR:", drawnError);
+      return res.status(500).json({ error: "Failed to fetch drawn cards" });
+    }
+
+    const drawnUserIds = new Set((drawnToday || []).map(r => r.user_id));
+    const toRemind = (allUsers || []).filter(u => !drawnUserIds.has(u.user_id));
+
+    console.log(`REMINDERS: total users ${allUsers.length}, already drawn ${drawnUserIds.size}, to remind ${toRemind.length}`);
+
+    let sent = 0;
+    for (const user of toRemind) {
+      try {
+        await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: user.chat_id,
+            text: "🔮 Твоя карта дня уже ждёт тебя! Загляни в бот и узнай, что подготовила вселенная сегодня 🎴",
+            reply_markup: {
+              inline_keyboard: [[{ text: "🎴 Получить карту дня", url: "https://t.me/arcana_cards_bot?start=menu" }]]
+            }
+          })
+        });
+        sent++;
+      } catch (tgError) {
+        console.error("REMINDER SEND FAILED for", user.chat_id, tgError);
+      }
+      // небольшая пауза, чтобы не упереться в лимиты Telegram
+      await new Promise(r => setTimeout(r, 50));
+    }
+
+    console.log(`=== SEND REMINDERS DONE: ${sent}/${toRemind.length} sent ===`);
+    res.json({ ok: true, totalUsers: allUsers.length, alreadyDrawn: drawnUserIds.size, reminded: sent });
+
+  } catch (error) {
+    console.error("SEND REMINDERS ERROR:", error);
     res.status(500).json({ error: error.message });
   }
 });
