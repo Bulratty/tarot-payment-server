@@ -394,6 +394,104 @@ app.get("/check-payment", async (req, res) => {
   res.json({ paid: payment.status === "paid", product: payment.product });
 });
 
+// ==================== КАРТА ДНЯ ====================
+
+function getTodayDateMoscow() {
+  // Формат YYYY-MM-DD в московском часовом поясе — чтобы "день" не сбивался из-за UTC на сервере
+  return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" });
+}
+
+async function sendDailyCardMessage(chatId, card, alreadyDrawn) {
+  const orientation = card.is_reversed ? "🔄 Перевёрнутое положение" : "✨ Прямое положение";
+
+  const header = alreadyDrawn
+    ? "🎴 Ты уже вытянул(а) карту дня сегодня — вот она снова:"
+    : "🎴 ТВОЯ КАРТА ДНЯ";
+
+  const text =
+    `${header}\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `🎴 ${card.card_name}\n` +
+    `${orientation}\n\n` +
+    `💫 ${card.card_meaning}\n\n` +
+    `🔑 Совет: ${card.card_advice}\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `🔄 Возвращайся завтра за новой картой`;
+
+  await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendPhoto`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      photo: card.card_image,
+      caption: text
+    })
+  });
+}
+
+app.post("/daily-card", async (req, res) => {
+  try {
+    const { user_id, chat_id } = req.body;
+    console.log("=== DAILY CARD REQUEST ===", user_id, chat_id);
+
+    if (!user_id || !chat_id) {
+      return res.status(400).json({ error: "user_id and chat_id required" });
+    }
+
+    const today = getTodayDateMoscow();
+
+    // Проверяем, была ли уже выдана карта сегодня
+    const { data: existing, error: selectError } = await supabase
+      .from("daily_cards")
+      .select("*")
+      .eq("user_id", user_id)
+      .eq("drawn_date", today)
+      .maybeSingle();
+
+    if (selectError) {
+      console.error("DAILY CARD SELECT ERROR:", selectError);
+      return res.status(500).json({ error: "Failed to check daily card" });
+    }
+
+    if (existing) {
+      console.log("DAILY CARD ALREADY DRAWN TODAY:", user_id);
+      await sendDailyCardMessage(chat_id, existing, true);
+      return res.json({ ok: true, alreadyDrawn: true, card: existing.card_name });
+    }
+
+    // Новая карта дня
+    const drawn = drawCards(1)[0];
+    const newCard = {
+      user_id,
+      chat_id,
+      card_name: drawn.name,
+      card_image: drawn.image,
+      card_meaning: drawn.isReversed ? drawn.reversed : drawn.upright,
+      card_advice: drawn.advice,
+      is_reversed: drawn.isReversed,
+      drawn_date: today
+    };
+
+    const { error: insertError } = await supabase
+      .from("daily_cards")
+      .insert(newCard);
+
+    if (insertError) {
+      // Если гонка (два запроса почти одновременно) — уникальный индекс мог сработать первым
+      console.error("DAILY CARD INSERT ERROR:", insertError);
+      return res.status(500).json({ error: "Failed to save daily card" });
+    }
+
+    console.log("DAILY CARD SAVED:", user_id, newCard.card_name);
+    await sendDailyCardMessage(chat_id, newCard, false);
+    res.json({ ok: true, alreadyDrawn: false, card: newCard.card_name });
+
+  } catch (error) {
+    console.error("DAILY CARD ERROR:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
