@@ -152,8 +152,22 @@ const SPREADS = {
 
 // ==================== ТАРО: генерация расклада без LLM ====================
 
+// Старшие Арканы — 22 карты без мастей (для карты дня)
+const MINOR_SUIT_KEYWORDS = ["WANDS", "CUPS", "SWORDS", "PENTACLES"];
+const majorArcanaCards = cards.filter(
+  card => !MINOR_SUIT_KEYWORDS.some(suit => card.name.includes(suit))
+);
+
 function drawCards(count) {
   const shuffled = [...cards].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count).map(card => ({
+    ...card,
+    isReversed: Math.random() < 0.5
+  }));
+}
+
+function drawMajorArcana(count) {
+  const shuffled = [...majorArcanaCards].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, count).map(card => ({
     ...card,
     isReversed: Math.random() < 0.5
@@ -475,7 +489,7 @@ app.post("/daily-card", async (req, res) => {
     }
 
     // Новая карта дня
-    const drawn = drawCards(1)[0];
+    const drawn = drawMajorArcana(1)[0];
     const newCard = {
       user_id,
       chat_id,
@@ -567,11 +581,11 @@ app.post("/send-reminders", async (req, res) => {
     }
 
     console.log(`=== SEND REMINDERS DONE: ${sent}/${toRemind.length} sent ===`);
-    res.json({ ok: true, totalUsers: allUsers.length, alreadyDrawn: drawnUserIds.size, reminded: sent });
+    res.status(200).send("OK");
 
   } catch (error) {
     console.error("SEND REMINDERS ERROR:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).send("ERROR");
   }
 });
 
