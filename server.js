@@ -194,6 +194,23 @@ async function sendReading(chatId, spreadKey) {
 
   const cardsDrawn = drawCards(spread.positions.length);
 
+  // Короткая анимация-интро перед раскладом (создаёт эффект ритуала)
+  if (process.env.INTRO_GIF_URL) {
+    try {
+      await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendAnimation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          animation: process.env.INTRO_GIF_URL
+        })
+      });
+      await new Promise(r => setTimeout(r, 1200));
+    } catch (gifError) {
+      console.error("INTRO GIF SEND ERROR:", gifError);
+    }
+  }
+
   // Заголовок
   await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`, {
     method: "POST",
